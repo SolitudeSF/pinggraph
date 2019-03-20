@@ -83,15 +83,24 @@ proc pinggraph(
 
     if errCode == 0:
 
+      ping = parseFloat(
+        when defined(windows):
+          let
+            lineStartFirst = output.find('\n') + 1
+            lineStart = output.find('\n', start = lineStartFirst) + 1
+            lineEnd = output.find('\n', start = lineStart)
+            firstEq = output.rfind('=', start = lineEnd)
+          output[output.rfind('=', start = firstEq - 1) + 1..firstEq - 7]
+        else:
+          let
+            lineStart = output.find('\n') + 1
+            lineEnd = output.find('\n', start = lineStart)
+          output[output.rfind('=', start = lineEnd) + 1..lineEnd - 5]
+      )
+
       let
         tWidth = terminalWidth()
         width = uint(if tWidth != 0: tWidth - 12 else: 80)
-        pingString = output.splitLines[(when defined(windows): 2 else: 1)].
-                              split('=')[^1].split("ms")[0].strip
-
-      ping = pingString.parseFloat
-
-      let
         ratio = ping / maxPing.float
         ratioMinus = ratio - 0.5
         barsCount = uint(ratio * width.float)
@@ -102,12 +111,12 @@ proc pinggraph(
         cap = (if drawCap and ping >= barPingHalf: halfChar else: "")
 
         barString = barChar.repeat(min(barsCount, width)) & cap
-
         pingColor = (
           case color
           of ckTruecolor:
             let red = min(int16(255.0 + colorCoeff * ratioMinus), 255'i16).uint8
-            let green = min(255, max(int16(255.0 - colorCoeff * ratioMinus), desaturation.int16)).uint8
+            let green = min(255, max(int16(255.0 - colorCoeff * ratioMinus),
+                desaturation.int16)).uint8
             let blue = desaturation
             rgb(red, green, blue).ansiForegroundColorCode
           of ck16Color:
@@ -122,7 +131,6 @@ proc pinggraph(
           of ckNone:
             ""
         )
-
         timestampString = (
           case timestamp
           of tkShort:
