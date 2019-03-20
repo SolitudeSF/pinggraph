@@ -13,13 +13,13 @@ const
   shortTimeFormat = initTimeFormat("HH:mm:ss")
   fullTimeFormat = initTimeFormat("yyyy-MM-dd HH:mm:ss")
 
-proc main(
-    hosts: seq[string],
+proc pinggraph(
+    host: seq[string],
     interval = 0.5,
     maxping = 300'u,
     count = 0'u,
     style = skBar,
-    header = true,
+    noheader = false,
     color = (
       case getEnv("COLORTERM")
       of "truecolor", "24bit":
@@ -31,16 +31,16 @@ proc main(
     saturation = 160'u8
   ) =
 
-  if hosts.len == 0:
+  if host.len == 0:
     stderr.writeLine "Provide host to ping"
     quit 1
-  elif hosts.len > 1:
+  elif host.len > 1:
     stderr.writeLine "Ignoring additional hosts"
 
   var count = count
 
   let
-    host = hosts[0]
+    host = host[0]
     wait = interval * 1000
     desaturation = 255'u8 - saturation
     colorCoeff = 512.0 - desaturation.float * 2.0
@@ -59,7 +59,7 @@ proc main(
         ("=", "-", "|")
     )
 
-  if header:
+  if not noHeader:
     styledEcho(
       styleBright,
       "Ping graph for host ",
@@ -154,4 +154,16 @@ proc main(
     sleep sleepTime
 
 
-dispatch main
+dispatch pinggraph,
+  short = {"saturation": 'S',"maxping": 'M',"color": 'C',"noheader": 'H'},
+  help = {
+    "host": "[host to ping (required)]",
+    "interval": "Interval between pings (in seconds).",
+    "maxping": "Maximal visible ping value (in milliseconds).",
+    "color": "Color scheme (default based on system capabilities). Available: none, 16color, truecolor.",
+    "count": "Number of pings to do. 0 = unlimited.",
+    "style": "Bar style. Available: bar, block, line, ascii.",
+    "timestamp": "Timestamp type. Available: none, short, full.",
+    "saturation": "Saturation of graph with \"truecolor\" colorscheme.",
+    "noheader": "Disable header"
+  }
