@@ -20,13 +20,7 @@ proc pinggraph(
     count = 0'u,
     style = skBar,
     noheader = false,
-    color = (
-      case getEnv("COLORTERM")
-      of "truecolor", "24bit":
-        ckTruecolor
-      else:
-        ck16Color
-    ),
+    color = (if isTrueColorSupported(): ckTruecolor else: ck16Color),
     timestamp = tkNone,
     saturation = 160'u8
   ) =
@@ -36,6 +30,8 @@ proc pinggraph(
     quit 1
   elif host.len > 1:
     stderr.writeLine "Ignoring additional hosts"
+
+  if color == ckTruecolor and isTrueColorSupported(): enableTrueColors()
 
   var count = count
 
