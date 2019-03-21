@@ -99,8 +99,7 @@ proc pinggraph(
         barPingNext = round((barsCount + 1).float / width.float / ratio * ping)
         barPingHalf = (barPing + barPingNext) / 2.0
         drawCap = not (maxPing <= width or barsCount >= width)
-        cap = (if drawCap and ping >= barPingHalf and ping <= barPingNext:
-          halfChar else: "")
+        cap = (if drawCap and ping >= barPingHalf: halfChar else: "")
 
         barString = barChar.repeat(min(barsCount, width)) & cap
 
@@ -113,9 +112,9 @@ proc pinggraph(
             rgb(red, green, blue).ansiForegroundColorCode
           of ck16Color:
             ansiForegroundColorCode(
-              if ratio >= 0.0 and ratio <= 0.33:
+              if ratio <= 0.33:
                 fgGreen
-              elif ratio > 0.33 and ratio <= 0.67:
+              elif ratio <= 0.67:
                 fgYellow
               else:
                 fgRed
