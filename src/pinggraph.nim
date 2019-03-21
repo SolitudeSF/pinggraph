@@ -111,7 +111,7 @@ proc pinggraph(
             let green = min(255, max(int16(255.0 - colorCoeff * ratioMinus), desaturation.int16)).uint8
             let blue = desaturation
             rgb(red, green, blue).ansiForegroundColorCode
-          else:
+          of ck16Color:
             ansiForegroundColorCode(
               if ratio >= 0.0 and ratio <= 0.33:
                 fgGreen
@@ -120,6 +120,8 @@ proc pinggraph(
               else:
                 fgRed
             )
+          of ckNone:
+            ""
         )
 
         timestampString = (
