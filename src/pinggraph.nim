@@ -160,7 +160,9 @@ proc pinggraph(
 
 
 dispatch pinggraph,
-  short = {"saturation": 'S',"maxping": 'M',"color": 'C',"noheader": 'H'},
+  version = ("version", "0.1.2"),
+  short = {"saturation": 'S',"maxping": 'M',"color": 'C',"noheader": 'H',
+      "version": 'v'},
   help = {
     "host": "[host to ping (required)]",
     "interval": "Interval between pings (in seconds).",
