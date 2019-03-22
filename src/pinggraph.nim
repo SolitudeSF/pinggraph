@@ -13,6 +13,9 @@ const
   shortTimeFormat = initTimeFormat("HH:mm:ss")
   fullTimeFormat = initTimeFormat("yyyy-MM-dd HH:mm:ss")
 
+proc doQuit {.noconv.} =
+  quit 0
+
 proc pinggraph(
     host: seq[string],
     interval = 0.5,
@@ -107,22 +110,24 @@ proc pinggraph(
         tWidth = terminalWidth()
         width = uint(if tWidth > leftPad: tWidth - leftPad else: 80)
         ratio = ping / maxPing.float
-        ratioMinus = ratio - 0.5
         barsCount = uint(ratio * width.float)
         barPing = round(barsCount.float / width.float / ratio * ping)
         barPingNext = round((barsCount + 1).float / width.float / ratio * ping)
         barPingHalf = (barPing + barPingNext) / 2.0
+
         drawCap = not (maxPing <= width or barsCount >= width)
         cap = (if drawCap and ping >= barPingHalf: halfChar else: "")
-
         barString = barChar.repeat(min(barsCount, width)) & cap
+
         pingColor = (
           case color
           of ckTruecolor:
-            let red = min(int16(255.0 + colorCoeff * ratioMinus), 255'i16).uint8
-            let green = min(255, max(int16(255.0 - colorCoeff * ratioMinus),
+            let
+              ratioMinus = ratio - 0.5
+              red = min(int16(255.0 + colorCoeff * ratioMinus), 255'i16).uint8
+              green = min(255, max(int16(255.0 - colorCoeff * ratioMinus),
                 desaturation.int16)).uint8
-            let blue = desaturation
+              blue = desaturation
             rgb(red, green, blue).ansiForegroundColorCode
           of ck16Color:
             ansiForegroundColorCode(
@@ -167,6 +172,8 @@ proc pinggraph(
     let sleepTime = int(wait - min(ping, wait))
     sleep sleepTime
 
+
+setControlCHook doQuit
 
 dispatch pinggraph,
   version = ("version", "0.1.2"),
