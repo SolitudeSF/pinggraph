@@ -21,7 +21,7 @@ proc pinggraph(
     interval = 0.5,
     maxping = 300'u,
     count = 0'u,
-    style = skBar,
+    style = skBlock,
     noheader = false,
     color = (if (enableTrueColors(); isTrueColorSupported()):
       ckTruecolor else: ck16Color),
@@ -55,17 +55,18 @@ proc pinggraph(
 
     cmd = "ping " & (when defined(windows): "-n" else: "-c") & " 1 " & host
 
-    (barChar, halfChar, sepChar) = (
+    (sepChar, barChar, halfChars) = (
       case style
       of skBar:
-        ("▄", "▖", "▏")
+        ("▏", "▄", @["▖"])
       of skBlock:
-        ("█", "▌", "▏")
+        ("▏", "█", @["▏","▎","▍","▌","▋","▊","▉","█"])
       of skLine:
-        ("▁", "", "▏")
+        ("▏", "▁",@[""])
       of skAscii:
-        ("=", "-", "|")
+        ("|", "=", @["-"])
     )
+
 
   if not noHeader:
     styledEcho(
@@ -108,16 +109,19 @@ proc pinggraph(
 
       let
         tWidth = terminalWidth()
-        width = uint(if tWidth > leftPad: tWidth - leftPad else: 80)
+        width = if tWidth > leftPad: tWidth - leftPad else: 80
         ratio = ping / maxPing.float
-        barsCount = uint(ratio * width.float)
-        barPing = round(barsCount.float / width.float / ratio * ping)
-        barPingNext = round((barsCount + 1).float / width.float / ratio * ping)
-        barPingHalf = (barPing + barPingNext) / 2.0
-
-        drawCap = not (maxPing <= width or barsCount >= width)
-        cap = (if drawCap and ping >= barPingHalf: halfChar else: "")
-        barString = barChar.repeat(min(barsCount, width)) & cap
+        barString = (if ratio < 1:
+          let
+            cellsPerPing = width.float / maxPing.float
+            barsCount = int(cellsPerPing * ping)
+            capWidth = (cellsPerPing * ping) - barsCount.float
+            capType = int(capWidth * float(halfChars.len + 1))
+            capChar = (if capType >= 1: halfChars[capType - 1] else: "")
+          barChar.repeat(barsCount) & capChar
+        else:
+          barChar.repeat(width)
+        )
 
         pingColor = (
           case color
@@ -126,9 +130,8 @@ proc pinggraph(
               ratioMinus = ratio - 0.5
               red = min(int16(255.0 + colorCoeff * ratioMinus), 255'i16).uint8
               green = min(255, max(int16(255.0 - colorCoeff * ratioMinus),
-                desaturation.int16)).uint8
-              blue = desaturation
-            rgb(red, green, blue).ansiForegroundColorCode
+                                   desaturation.int16)).uint8
+            rgb(red, green, desaturation).ansiForegroundColorCode
           of ck16Color:
             ansiForegroundColorCode(
               if ratio <= 0.33:
