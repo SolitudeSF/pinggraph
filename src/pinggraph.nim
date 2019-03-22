@@ -41,6 +41,16 @@ proc pinggraph(
     desaturation = 255'u8 - saturation
     colorCoeff = 512.0 - desaturation.float * 2.0
 
+    leftPad = 12 + (
+      case timestamp
+      of tkNone:
+        0
+      of tkShort:
+        9
+      of tkFull:
+        20
+    )
+
     cmd = "ping " & (when defined(windows): "-n" else: "-c") & " 1 " & host
 
     (barChar, halfChar, sepChar) = (
@@ -91,12 +101,12 @@ proc pinggraph(
           let
             lineStart = output.find('\n') + 1
             lineEnd = output.find('\n', start = lineStart)
-          output[output.rfind('=', start = lineEnd) + 1..lineEnd - 5]
+          output[output.rfind('=', start = lineEnd) + 1..lineEnd - 4]
       )
 
       let
         tWidth = terminalWidth()
-        width = uint(if tWidth != 0: tWidth - 12 else: 80)
+        width = uint(if tWidth > leftPad: tWidth - leftPad else: 80)
         ratio = ping / maxPing.float
         ratioMinus = ratio - 0.5
         barsCount = uint(ratio * width.float)
@@ -130,17 +140,17 @@ proc pinggraph(
         timestampString = (
           case timestamp
           of tkShort:
-            now().format(shortTimeFormat)
+            now().format(shortTimeFormat) & " "
           of tkFull:
-            now().format(fullTimeFormat)
+            now().format(fullTimeFormat) & " "
           of tkNone:
             ""
         )
 
       styledEcho(
-        timestampString, " ",
+        timestampString,
         pingColor,
-        (ping.uint.`$`).align(4), " ms  ",
+        (ping.formatFloat(ffDecimal, 1)).align(5), " ms  ",
         fgDefault,
         sepChar, " ",
         pingColor,
