@@ -13,7 +13,28 @@ const
   shortTimeFormat = initTimeFormat("HH:mm:ss")
   fullTimeFormat = initTimeFormat("yyyy-MM-dd HH:mm:ss")
 
+var
+  pingMin = float.high
+  pingMax, pingSum = 0.0
+  pingCount = 0'u
+
 proc doQuit {.noconv.} =
+  styledEcho(
+    styleBright,
+    " Maximum = ",
+    fgYellow,
+    $pingMax,
+    fgDefault,
+    " ms, Minimum = ",
+    fgYellow,
+    $pingMin,
+    fgDefault,
+    " ms, Average = ",
+    fgYellow,
+    (pingSum / pingCount.float).formatFloat(precision = -1),
+    fgDefault,
+    " ms"
+  )
   quit 0
 
 proc pinggraph(
@@ -34,8 +55,6 @@ proc pinggraph(
     quit 1
   elif host.len > 1:
     stderr.writeLine "Ignoring additional hosts"
-
-  var count = count
 
   let
     host = host[0]
@@ -107,6 +126,11 @@ proc pinggraph(
           output[output.rfind('=', start = lineEnd) + 1..lineEnd - 4]
       )
 
+      inc pingCount
+      pingSum += ping
+      if ping > pingMax: pingMax = ping
+      if ping < pingMin: pingMin = ping
+
       let
         tWidth = terminalWidth()
         width = if tWidth > leftPad: tWidth - leftPad else: 80
@@ -167,13 +191,12 @@ proc pinggraph(
     else:
       stderr.styledWriteLine(fgRed, styleBright, output)
 
-    if count != 0:
-      dec count
-      if count == 0:
-        break
+    if count != 0 and count == pingCount: break
 
     let sleepTime = int(wait - min(ping, wait))
     sleep sleepTime
+
+  doQuit()
 
 
 setControlCHook doQuit
