@@ -202,7 +202,7 @@ proc pinggraph(
 setControlCHook doQuit
 
 dispatch pinggraph,
-  version = ("version", "0.1.2"),
+  version = ("version", "0.1.3"),
   short = {"saturation": 'S',"maxping": 'M',"color": 'C',"noheader": 'H',
       "version": 'v'},
   help = {

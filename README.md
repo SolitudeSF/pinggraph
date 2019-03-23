@@ -6,5 +6,6 @@
 Why rust and not nim?
 
 ## Features
-Literally the same as [lagraph](https://github.com/Calinou/lagraph#features).
-This is line by line reimplementation.
+~~Literally the same as [lagraph](https://github.com/Calinou/lagraph#features).
+This is line by line reimplementation.~~
+Now with some deviations, like more precise graph and statistics report.
