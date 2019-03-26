@@ -1,4 +1,4 @@
-import terminal, os, osproc, strutils, math, times, colors
+import terminal, os, osproc, strutils, times, colors
 import cligen
 
 type
