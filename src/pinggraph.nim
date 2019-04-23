@@ -40,10 +40,10 @@ proc doQuit {.noconv.} =
 proc pinggraph(
     host: seq[string],
     interval = 0.5,
-    maxping = 300'u,
+    max_ping = 300'u,
     count = 0'u,
     style = skBlock,
-    noheader = false,
+    no_header = false,
     color = (if (enableTrueColors(); isTrueColorSupported()):
       ckTruecolor else: ck16Color),
     timestamp = tkNone,
@@ -202,17 +202,17 @@ proc pinggraph(
 setControlCHook doQuit
 
 dispatch pinggraph,
-  version = ("version", "0.1.3"),
-  short = {"saturation": 'S',"maxping": 'M',"color": 'C',"noheader": 'H',
+  version = ("version", "0.1.4"),
+  short = {"saturation": 'S',"max_ping": 'M',"color": 'C',"no_header": 'H',
       "version": 'v'},
   help = {
     "host": "[host to ping (required)]",
     "interval": "Interval between pings (in seconds).",
-    "maxping": "Maximal visible ping value (in milliseconds).",
+    "max_ping": "Maximal visible ping value (in milliseconds).",
     "color": "Color scheme (default based on system capabilities). Available: none, 16color, truecolor.",
     "count": "Number of pings to do. 0 = unlimited.",
     "style": "Bar style. Available: bar, block, line, ascii.",
     "timestamp": "Timestamp type. Available: none, short, full.",
     "saturation": "Saturation of graph with \"truecolor\" colorscheme.",
-    "noheader": "Disable header"
+    "no_header": "Disable header"
   }
