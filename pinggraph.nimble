@@ -10,4 +10,4 @@ bin           = @["pinggraph"]
 
 # Dependencies
 
-requires "nim >= 0.19.4", "cligen >= 0.9.21"
+requires "nim >= 0.19.4", "cligen >= 0.9.28"
