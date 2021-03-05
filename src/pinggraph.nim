@@ -123,7 +123,7 @@ proc pinggraph(
           let
             lineStart = output.find('\n') + 1
             lineEnd = output.find('\n', start = lineStart)
-          output[output.rfind('=', start = lineEnd) + 1..lineEnd - 4]
+          output[output.rfind('=', last = lineEnd) + 1..lineEnd - 4]
       )
 
       inc pingCount
