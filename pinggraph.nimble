@@ -1,6 +1,6 @@
 # Package
 
-version       = "0.1.4"
+version       = "0.2.0"
 author        = "SolitudeSF"
 description   = "Simple terminal ping graph"
 license       = "MIT"
@@ -10,4 +10,4 @@ bin           = @["pinggraph"]
 
 # Dependencies
 
-requires "nim >= 0.19.4", "cligen >= 0.9.28"
+requires "nim >= 2.0.0", "cligen >= 1.0.0"

@@ -204,7 +204,7 @@ proc pinggraph(
     fgYellow, (pingSum / pingCount.float).formatFloat(precision = -1),
     fgDefault, " ms"
 
-clCfg.version = "0.1.4"
+clCfg.version = "0.2.0"
 dispatch pinggraph,
   short = {"saturation": 'S',"max_ping": 'M',"color": 'C',"no_header": 'H',
       "version": 'v'},
