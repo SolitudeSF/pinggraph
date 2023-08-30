@@ -39,7 +39,7 @@ proc checksum(buffer: pointer, len: int): uint16 =
   let buf = cast[ptr UncheckedArray[uint16]](buffer)
   var sum: uint32
 
-  for i in 0..len div 2:
+  for i in 0..<len div 2:
     sum += buf[i]
 
   if len mod 2 == 1:
@@ -49,15 +49,13 @@ proc checksum(buffer: pointer, len: int): uint16 =
   sum += (sum shr 16)
   result = sum.not.uint16
 
-template checksum[T](t: T): uint16 = checksum(addr t, sizeof T)
-
-proc init(t: typedesc[PingPacket], sequence = 0'u16): PingPacket =
+proc init(t: typedesc[PingPacket], id, sequence: uint16): PingPacket =
   for i in 1..result.msg.high:
     result.msg[i] = chr(i + '0'.ord)
   result.header.`type` = ICMP_ECHO
-  result.header.un.echo.id = getCurrentProcessId().uint16
+  result.header.un.echo.id = id
   result.header.un.echo.sequence = sequence
-  result.header.checksum = checksum(result)
+  result.header.checksum = checksum(addr result, sizeof result)
 
 var looping = true
 proc stop {.noconv.} = looping = false
@@ -84,6 +82,7 @@ proc pinggraph(
     host = host[0]
     ipAddr = host.getHostByName.addrList[0]
     reverseHost = ipAddr.getHostByAddr.name
+    id = getCurrentProcessId().uint16
     wait = int64(interval * 1000)
     desaturation = 255'u8 - saturation
     colorCoeff = 512.0 - desaturation.float * 2.0
@@ -112,8 +111,8 @@ proc pinggraph(
   var
     pingLimit = float.high..float.low
     pingSum = 0.0
-    pingCount = 0'u
-    packet = PingPacket.init
+    pingCount = 0'u16
+    packet = PingPacket.init(id, 0)
 
   let socket = newSocket(sockType = SOCK_RAW, protocol = IPPROTO_ICMP)
 
@@ -192,7 +191,7 @@ proc pinggraph(
         pingColor, barString
 
       if count == pingCount: break
-      packet = PingPacket.init pingCount.uint16
+      packet = PingPacket.init(id, pingCount)
 
       sleep max(wait - timeElapsed.inMilliseconds, 0)
 
