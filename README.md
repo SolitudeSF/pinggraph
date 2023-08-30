@@ -8,7 +8,6 @@ Why rust and not nim?
 ## Installation
 With [Nim](https://nim-lang.org) toolchain installed: `nimble install pinggraph`
 
-## Features
-~~Literally the same as [lagraph](https://github.com/Calinou/lagraph#features).
-This is line by line reimplementation.~~
-Now with some deviations, like more precise graph and statistics report.
+To run the binary without root rights, it needs raw socket capability: `setcap cap_net_raw+ep $(which pinggraph)`
+
+Windows isnt supported.

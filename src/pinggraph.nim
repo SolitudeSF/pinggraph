@@ -1,5 +1,6 @@
-import terminal, os, osproc, strutils, times, colors
-import cligen
+import std/[terminal, os, strutils, times, colors, net, nativesockets, monotimes]
+import std/posix except SOCK_RAW, IPPROTO_ICMP
+import pkg/cligen
 
 type
   TimestampKind = enum
@@ -9,33 +10,57 @@ type
   ColorKind = enum
     ck16Color = "16color", ckTruecolor = "truecolor", ckNone = "none"
 
+  IcmpHeaderInner {.union.} = object
+    echo: tuple[id, sequence: uint16]
+    gateway: uint32
+    frag: tuple[unused, mtu: uint16]
+    reserved: array[4, uint8]
+
+  IcmpHeader = object
+    `type`, code: uint8
+    checksum: uint16
+    un: IcmpHeaderInner
+
+  PingPacket = object
+    header: IcmpHeader
+    msg: array[64 - sizeof IcmpHeader, char]
+
 const
   shortTimeFormat = initTimeFormat("HH:mm:ss")
   fullTimeFormat = initTimeFormat("yyyy-MM-dd HH:mm:ss")
+  timestampPad = [tkFull: 32, tkShort: 21, tkNone: 12]
 
-var
-  pingMin = float.high
-  pingMax, pingSum = 0.0
-  pingCount = 0'u
+  SOL_IP = 0
+  IP_TTL = 2
+  SO_RCVTIMEO = 20
+  ICMP_ECHO = 8
 
-proc doQuit {.noconv.} =
-  styledEcho(
-    styleBright,
-    " Maximum = ",
-    fgYellow,
-    $pingMax,
-    fgDefault,
-    " ms, Minimum = ",
-    fgYellow,
-    $pingMin,
-    fgDefault,
-    " ms, Average = ",
-    fgYellow,
-    (pingSum / pingCount.float).formatFloat(precision = -1),
-    fgDefault,
-    " ms"
-  )
-  quit 0
+proc checksum(buffer: pointer, len: int): uint16 =
+  let buf = cast[ptr UncheckedArray[uint16]](buffer)
+  var sum: uint32
+
+  for i in 0..len div 2:
+    sum += buf[i]
+
+  if len mod 2 == 1:
+    sum += cast[ptr UncheckedArray[uint8]](buffer)[len - 1]
+
+  sum = (sum shr 16) + (sum and 0xFFFF)
+  sum += (sum shr 16)
+  result = sum.not.uint16
+
+template checksum[T](t: T): uint16 = checksum(addr t, sizeof T)
+
+proc init(t: typedesc[PingPacket], sequence = 0'u16): PingPacket =
+  for i in 1..result.msg.high:
+    result.msg[i] = chr(i + '0'.ord)
+  result.header.`type` = ICMP_ECHO
+  result.header.un.echo.id = getCurrentProcessId().uint16
+  result.header.un.echo.sequence = sequence
+  result.header.checksum = checksum(result)
+
+var looping = true
+proc stop {.noconv.} = looping = false
 
 proc pinggraph(
     host: seq[string],
@@ -44,8 +69,7 @@ proc pinggraph(
     count = 0'u,
     style = skBlock,
     no_header = false,
-    color = (if (enableTrueColors(); isTrueColorSupported()):
-      ckTruecolor else: ck16Color),
+    color = (if (enableTrueColors(); isTrueColorSupported()): ckTruecolor else: ck16Color),
     timestamp = tkNone,
     saturation = 160'u8
   ) =
@@ -58,24 +82,13 @@ proc pinggraph(
 
   let
     host = host[0]
-    wait = interval * 1000
+    ipAddr = host.getHostByName.addrList[0]
+    reverseHost = ipAddr.getHostByAddr.name
+    wait = int64(interval * 1000)
     desaturation = 255'u8 - saturation
     colorCoeff = 512.0 - desaturation.float * 2.0
-
-    leftPad = 12 + (
-      case timestamp
-      of tkNone:
-        0
-      of tkShort:
-        9
-      of tkFull:
-        20
-    )
-
-    cmd = "ping " & (when defined(windows): "-n" else: "-c") & " 1 " & host
-
-    (sepChar, barChar, halfChars) = (
-      case style
+    leftPad = timestampPad[timestamp]
+    (sepChar, barChar, halfChars) = case style
       of skBar:
         ("▏", "▄", @["▖"])
       of skBlock:
@@ -84,58 +97,58 @@ proc pinggraph(
         ("▏", "▁",@[""])
       of skAscii:
         ("|", "=", @["-"])
-    )
-
 
   if not noHeader:
-    styledEcho(
-      styleBright,
-      "Ping graph for host ",
-      styleUnderscore, fgGreen,
-      host,
-      resetStyle, styleBright,
-      " - updated every ",
-      fgYellow,
-      $interval,
-      fgDefault,
-      " seconds - performing ",
-      fgBlue,
-      (if count == 0: "unlimited" else: $count),
-      fgDefault,
-      " pings:",
-    )
+    styledEcho styleBright, "Ping graph for host ",
+      styleUnderscore, fgGreen, host,
+      resetStyle, " ",
+      fgRed, ipAddr,
+      fgDefault, styleBright, " - updated every ",
+      fgYellow, $interval,
+      fgDefault, " seconds - performing ",
+      fgBlue,  if count == 0: "unlimited" else: $count,
+      fgDefault, " pings:"
 
-  while true:
-    var ping = 0.0
-    let (output, errCode) = execCmdEx(cmd)
+  var
+    pingLimit = float.high..float.low
+    pingSum = 0.0
+    pingCount = 0'u
+    packet = PingPacket.init
 
-    if errCode == 0:
+  let socket = newSocket(sockType = SOCK_RAW, protocol = IPPROTO_ICMP)
 
-      ping = parseFloat(
-        when defined(windows):
-          let
-            lineStartFirst = output.find('\n') + 1
-            lineStart = output.find('\n', start = lineStartFirst) + 1
-            lineEnd = output.find('\n', start = lineStart)
-            firstEq = output.rfind('=', start = lineEnd)
-          output[output.rfind('=', start = firstEq - 1) + 1..firstEq - 7]
-        else:
-          let
-            lineStart = output.find('\n') + 1
-            lineEnd = output.find('\n', start = lineStart)
-          output[output.rfind('=', last = lineEnd) + 1..lineEnd - 4]
-      )
+  socket.getFd.setSockOptInt(SOL_IP, IP_TTL, 64)
 
-      inc pingCount
+  setControlCHook stop
+
+  while looping:
+    inc pingCount
+
+    let startTime = getMonoTime()
+
+    socket.sendTo ipAddr, Port 0, addr packet, sizeof packet
+
+    var
+      data, address: string
+      port: Port
+
+    if socket.recvFrom(data, sizeof packet, address, port) <= 0:
+      echo "Didn't recieve a response"
+    else:
+      let
+        endTime = getMonoTime()
+        timeElapsed = endTime - startTime
+        ping = timeElapsed.inNanoseconds / 1_000_000
+
       pingSum += ping
-      if ping > pingMax: pingMax = ping
-      if ping < pingMin: pingMin = ping
+      if ping < pingLimit.a: pingLimit.a = ping
+      if ping > pingLimit.b: pingLimit.b = ping
 
       let
-        tWidth = terminalWidth()
-        width = if tWidth > leftPad: tWidth - leftPad else: 80
+        termWidth = terminalWidth()
+        width = if termWidth > leftPad: termWidth - leftPad else: 80
         ratio = ping / maxPing.float
-        barString = (if ratio < 1:
+        barString = if ratio < 1:
           let
             cellsPerPing = width.float / maxPing.float
             barsCount = int(cellsPerPing * ping)
@@ -145,16 +158,13 @@ proc pinggraph(
           barChar.repeat(barsCount) & capChar
         else:
           barChar.repeat(width)
-        )
 
-        pingColor = (
-          case color
+        pingColor = case color
           of ckTruecolor:
             let
-              ratioMinus = ratio - 0.5
-              red = min(int16(255.0 + colorCoeff * ratioMinus), 255'i16).uint8
-              green = min(255, max(int16(255.0 - colorCoeff * ratioMinus),
-                                   desaturation.int16)).uint8
+              colorRatio = colorCoeff * (ratio - 0.5)
+              red = min(int16(255 + colorRatio), 255).uint8
+              green = min(255, max(int16(255.0 - colorRatio), desaturation.int16)).uint8
             rgb(red, green, desaturation).ansiForegroundColorCode
           of ck16Color:
             ansiForegroundColorCode(
@@ -167,39 +177,32 @@ proc pinggraph(
             )
           of ckNone:
             ""
-        )
-        timestampString = (
-          case timestamp
+
+        timestampString = case timestamp
           of tkShort:
             now().format(shortTimeFormat) & " "
           of tkFull:
             now().format(fullTimeFormat) & " "
           of tkNone:
             ""
-        )
 
-      styledEcho(
-        timestampString,
-        pingColor,
-        (ping.formatFloat(ffDecimal, 1)).align(5), " ms  ",
-        fgDefault,
-        sepChar, " ",
-        pingColor,
-        barString
-      )
+      styledEcho timestampString,
+        pingColor, ping.formatFloat(ffDecimal, 1).align(5), " ms  ",
+        fgDefault, sepChar, " ",
+        pingColor, barString
 
-    else:
-      stderr.styledWriteLine(fgRed, styleBright, output)
+      if count == pingCount: break
+      packet = PingPacket.init pingCount.uint16
 
-    if count != 0 and count == pingCount: break
+      sleep max(wait - timeElapsed.inMilliseconds, 0)
 
-    let sleepTime = int(wait - min(ping, wait))
-    sleep sleepTime
-
-  doQuit()
-
-
-setControlCHook doQuit
+  styledEcho styleBright, " Maximum = ",
+    fgYellow, $pingLimit.b,
+    fgDefault, " ms, Minimum = ",
+    fgYellow, $pingLimit.a,
+    fgDefault, " ms, Average = ",
+    fgYellow, (pingSum / pingCount.float).formatFloat(precision = -1),
+    fgDefault, " ms"
 
 clCfg.version = "0.1.4"
 dispatch pinggraph,
